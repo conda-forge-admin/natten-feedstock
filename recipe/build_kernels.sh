@@ -22,12 +22,14 @@ done
 # pybind11 headers. natten.cpp keeps torch/extension.h; it is built per Python.
 grep -rl 'torch/extension.h' csrc/src csrc/autogen | xargs sed -i 's#torch/extension.h#torch/all.h#'
 
-# Stays in the work directory, which the natten outputs inherit
 cmake -S "${RECIPE_DIR}/kernels" -B build-kernels ${CMAKE_ARGS} \
+    -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
     -DNATTEN_CSRC="${SRC_DIR}/csrc" \
     -DNATTEN_CUDA_ARCHS="${NATTEN_CUDA_ARCHS}" \
     -DNATTEN_WITH_HOPPER_FNA="${NATTEN_WITH_HOPPER_FNA}" \
     -DNATTEN_WITH_BLACKWELL_FNA="${NATTEN_WITH_BLACKWELL_FNA}" \
     -DCUTLASS_INCLUDE_DIR="${PREFIX}/include" \
-    -DTORCH_INCLUDE_DIRS="${PREFIX}/include;${PREFIX}/include/torch/csrc/api/include"
+    -DTORCH_INCLUDE_DIRS="${PREFIX}/include;${PREFIX}/include/torch/csrc/api/include" \
+    -DTORCH_LIBRARY_DIRS="${PREFIX}/lib"
 cmake --build build-kernels -j"${NATTEN_N_WORKERS}"
+cmake --install build-kernels
