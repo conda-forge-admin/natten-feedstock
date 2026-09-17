@@ -27,7 +27,7 @@ source:
     - 0002-Fix-torch.compile-self-attention-fallback-logging.patch
 
 build:
-  number: 0
+  number: 1
   # libnatten is CUDA-only; without CUDA upstream builds a pure-python package
   skip:
     - cuda_compiler_version == "None" or (not linux)
