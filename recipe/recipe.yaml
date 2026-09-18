@@ -61,10 +61,9 @@ outputs:
           # recipe/cuda_archs.sh turns this into NATTEN_CUDA_ARCHS and the
           # NATTEN_WITH_*_FNA flags; the datacenter parts are CUDA 13 only
           cuda_compiler_version: ${{ cuda_compiler_version }}
-          # Two at a time. Peak cicc RSS was measured at 4.36 GiB with the
-          # Hopper kernels, so two fit a 16 GB CI runner, and one worker no
-          # longer finishes the CUDA 13 selection inside the 6 h timeout.
-          NATTEN_N_WORKERS: "2"
+          # One compile job at a time; the CUTLASS kernels need several GB each
+          # and parallel jobs risk running the CI agents out of memory
+          NATTEN_N_WORKERS: "1"
         file: build_kernels.sh
     tests:
       - package_contents:
