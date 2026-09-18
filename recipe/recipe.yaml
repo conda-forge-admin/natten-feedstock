@@ -4,13 +4,13 @@ context:
   name: natten
   version: "0.21.7"
   # Turing (RTX 20 series, T4), Ampere (A100, RTX 30 series; sm_86 binaries also
-  # run on the 40 series) and consumer Blackwell (RTX 50 series, RTX PRO 6000),
-  # with PTX for the newest arch so future GPUs can JIT the kernels. The
-  # datacenter-only Hopper (9.0) and Blackwell (10.0) kernels are left out: they
-  # are by far the heaviest to compile, and NATTEN only enables those kernel
-  # families for those two archs.
-  cuda_archs: 75-real;80-real;86-real;120-real;120-virtual
-  with_hopper_fna: "0"
+  # run on the 40 series), datacenter Hopper (H100) and consumer Blackwell
+  # (RTX 50 series, RTX PRO 6000), with PTX for the newest arch so future GPUs
+  # can JIT the kernels. Datacenter Blackwell (10.0) is still left out; NATTEN
+  # only enables that kernel family for that arch and it is the heaviest to
+  # compile.
+  cuda_archs: 75-real;80-real;86-real;90-real;120-real;120-virtual
+  with_hopper_fna: "1"
   with_blackwell_fna: "0"
 
 recipe:
@@ -27,7 +27,7 @@ source:
     - 0002-Fix-torch.compile-self-attention-fallback-logging.patch
 
 build:
-  number: 1
+  number: 2
   # libnatten is CUDA-only; without CUDA upstream builds a pure-python package
   skip:
     - cuda_compiler_version == "None" or (not linux)
