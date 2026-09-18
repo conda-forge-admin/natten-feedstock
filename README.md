@@ -37,6 +37,7 @@ Current release info
 
 | Name | Downloads | Version | Platforms |
 | --- | --- | --- | --- |
+| [![Conda Recipe](https://img.shields.io/badge/recipe-libnatten-green.svg)](https://anaconda.org/conda-forge/libnatten) | [![Conda Downloads](https://img.shields.io/conda/dn/conda-forge/libnatten.svg)](https://anaconda.org/conda-forge/libnatten) | [![Conda Version](https://img.shields.io/conda/vn/conda-forge/libnatten.svg)](https://anaconda.org/conda-forge/libnatten) | [![Conda Platforms](https://img.shields.io/conda/pn/conda-forge/libnatten.svg)](https://anaconda.org/conda-forge/libnatten) |
 | [![Conda Recipe](https://img.shields.io/badge/recipe-natten-green.svg)](https://anaconda.org/conda-forge/natten) | [![Conda Downloads](https://img.shields.io/conda/dn/conda-forge/natten.svg)](https://anaconda.org/conda-forge/natten) | [![Conda Version](https://img.shields.io/conda/vn/conda-forge/natten.svg)](https://anaconda.org/conda-forge/natten) | [![Conda Platforms](https://img.shields.io/conda/pn/conda-forge/natten.svg)](https://anaconda.org/conda-forge/natten) |
 
 Installing natten
@@ -56,7 +57,7 @@ How to use
 <summary>With conda</summary>
 
 ```
-conda install natten
+conda install libnatten natten
 ```
 
 </details>
@@ -65,7 +66,7 @@ conda install natten
 <summary>With mamba</summary>
 
 ```
-mamba install natten
+mamba install libnatten natten
 ```
 
 </details>
@@ -75,9 +76,9 @@ mamba install natten
 
 ```
 # for adding to your local project
-pixi add natten
+pixi add libnatten natten
 # for installing globally
-pixi global install natten
+pixi global install libnatten natten
 ```
 
 </details>
@@ -85,13 +86,13 @@ pixi global install natten
 Search package versions
 -----------------------
 
-It is possible to list all of the versions of `natten` available on your platform:
+It is possible to list all of the versions of `libnatten` available on your platform:
 
 <details>
 <summary>With conda</summary>
 
 ```
-conda search natten --channel conda-forge
+conda search libnatten --channel conda-forge
 ```
 
 </details>
@@ -100,7 +101,7 @@ conda search natten --channel conda-forge
 <summary>With mamba</summary>
 
 ```
-mamba search natten --channel conda-forge
+mamba search libnatten --channel conda-forge
 ```
 
 </details>
@@ -109,7 +110,7 @@ mamba search natten --channel conda-forge
 <summary>With pixi</summary>
 
 ```
-pixi search natten --channel conda-forge
+pixi search libnatten --channel conda-forge
 ```
 
 </details>
@@ -119,13 +120,13 @@ pixi search natten --channel conda-forge
 
 ```
 # Search all versions available on your platform:
-mamba repoquery search natten --channel conda-forge
+mamba repoquery search libnatten --channel conda-forge
 
-# List packages depending on `natten`:
-mamba repoquery whoneeds natten --channel conda-forge
+# List packages depending on `libnatten`:
+mamba repoquery whoneeds libnatten --channel conda-forge
 
-# List dependencies of `natten`:
-mamba repoquery depends natten --channel conda-forge
+# List dependencies of `libnatten`:
+mamba repoquery depends libnatten --channel conda-forge
 ```
 
 </details>

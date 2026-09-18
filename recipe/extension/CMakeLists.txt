@@ -1,6 +1,5 @@
 # Per-Python part of libnatten: the pybind11 module in csrc/natten.cpp, linked
-# against the Python-independent kernel library from the natten-kernels
-# staging output.
+# against the Python-independent kernel library from the libnatten package.
 cmake_minimum_required(VERSION 3.24 FATAL_ERROR)
 project(natten_extension LANGUAGES CXX)
 
@@ -34,7 +33,9 @@ endif()
 target_include_directories(natten PRIVATE ${NATTEN_CSRC}/include)
 target_include_directories(natten SYSTEM PRIVATE ${TORCH_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIR})
 target_link_directories(natten PRIVATE ${TORCH_LIBRARY_DIRS})
+# No WHOLE_ARCHIVE: the kernels are a shared library now, so the linker keeps
+# every definition and the loader pulls the whole thing in at import time.
 target_link_libraries(natten PRIVATE
-  "$<LINK_LIBRARY:WHOLE_ARCHIVE,${NATTEN_KERNELS_LIB}>"
+  ${NATTEN_KERNELS_LIB}
   c10 torch torch_cpu torch_python c10_cuda torch_cuda CUDA::cudart
 )

@@ -1,7 +1,8 @@
 # Python-independent part of libnatten: every CUDA kernel plus the ATen-level
-# wrappers in csrc/src, built as a static library. Compile flags and
+# wrappers in csrc/src, built as a shared library. Compile flags and
 # definitions mirror upstream's csrc/CMakeLists.txt, minus the Python headers,
-# so the result does not depend on the Python version.
+# so the result does not depend on the Python version. The pybind11 module in
+# csrc/natten.cpp links against this and is the only per-Python artifact.
 cmake_minimum_required(VERSION 3.24 FATAL_ERROR)
 project(natten_kernels LANGUAGES CXX CUDA)
 
@@ -44,10 +45,13 @@ file(GLOB KERNEL_SOURCES
   ${NATTEN_CSRC}/autogen/src/cuda/*/*.cu
 )
 
-add_library(natten_kernels STATIC ${KERNEL_SOURCES})
+add_library(natten_kernels SHARED ${KERNEL_SOURCES})
 set_target_properties(natten_kernels PROPERTIES
   CUDA_ARCHITECTURES "${NATTEN_CUDA_ARCHS}"
   POSITION_INDEPENDENT_CODE ON
+  # The kernels and the pybind11 module are always built and pinned together,
+  # so there is no independent ABI to version with a SOVERSION.
+  INSTALL_RPATH "$ORIGIN"
 )
 target_include_directories(natten_kernels PRIVATE
   ${NATTEN_CSRC}/include
@@ -55,3 +59,14 @@ target_include_directories(natten_kernels PRIVATE
 )
 target_include_directories(natten_kernels SYSTEM PRIVATE ${CUTLASS_INCLUDE_DIR})
 target_include_directories(natten_kernels SYSTEM PRIVATE ${TORCH_INCLUDE_DIRS})
+
+# As a static library these stayed unresolved until the extension module linked
+# them; a shared library has to resolve them itself. torch_python is absent on
+# purpose -- nothing here touches the CPython API, which is what keeps this
+# object independent of the Python version.
+target_link_directories(natten_kernels PRIVATE ${TORCH_LIBRARY_DIRS})
+target_link_libraries(natten_kernels PRIVATE
+  c10 torch torch_cpu c10_cuda torch_cuda CUDA::cudart
+)
+
+install(TARGETS natten_kernels LIBRARY DESTINATION lib)

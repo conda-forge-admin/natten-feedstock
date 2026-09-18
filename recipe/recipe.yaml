@@ -27,17 +27,17 @@ source:
     - 0002-Fix-torch.compile-self-attention-fallback-logging.patch
 
 build:
-  number: 0
+  number: 1
   # libnatten is CUDA-only; without CUDA upstream builds a pure-python package
   skip:
     - cuda_compiler_version == "None" or (not linux)
 
 outputs:
-  # The CUDA kernels only use libtorch's C++ API, not Python, so compile them
-  # once per CUDA version into a static library that every Python variant of
-  # natten links into its extension module.
-  - staging:
-      name: natten-kernels
+  # The CUDA kernels only use libtorch's C++ API, not Python, so they build into
+  # a shared library of their own instead of being compiled into every Python
+  # variant's extension module.
+  - package:
+      name: libnatten
     requirements:
       build:
         - ${{ compiler('c') }}
@@ -60,6 +60,10 @@ outputs:
         - cutlass
         - libtorch
         - libtorch * cuda*
+      # The kernels and the pybind11 module are two halves of one translation
+      # unit set; there is no soname-level ABI contract between them.
+      run_exports:
+        - ${{ pin_subpackage('libnatten', exact=True) }}
     build:
       script:
         env:
@@ -70,10 +74,13 @@ outputs:
           # parallel jobs run the CI agents out of memory
           NATTEN_N_WORKERS: "1"
         file: build_kernels.sh
+    tests:
+      - package_contents:
+          lib:
+            - natten_kernels
 
   - package:
       name: natten
-    inherit: natten-kernels
     requirements:
       build:
         - ${{ compiler('c') }}
@@ -91,6 +98,7 @@ outputs:
       host:
         - cuda-version ${{ cuda_compiler_version }}.*
         - cuda-cudart-dev
+        - ${{ pin_subpackage('libnatten', exact=True) }}
         - pip
         - python
         - pytorch
