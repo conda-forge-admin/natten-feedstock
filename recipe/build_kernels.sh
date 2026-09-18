@@ -1,6 +1,9 @@
 #!/bin/bash
 set -ex
 
+# Resolves NATTEN_CUDA_ARCHS and the NATTEN_WITH_*_FNA flags from cuda_compiler_version
+source "${RECIPE_DIR}/cuda_archs.sh"
+
 rm -rf third_party/cutlass/include
 
 # Generate the kernel instantiations with setup.py's "default" split policy.
