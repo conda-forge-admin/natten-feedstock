@@ -29,10 +29,47 @@ cmake -S "${RECIPE_DIR}/kernels" -B build-kernels ${CMAKE_ARGS} \
     -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
     -DNATTEN_CSRC="${SRC_DIR}/csrc" \
     -DNATTEN_CUDA_ARCHS="${NATTEN_CUDA_ARCHS}" \
+    -DNATTEN_HOPPER_ARCHS="${NATTEN_HOPPER_ARCHS}" \
+    -DNATTEN_BLACKWELL_ARCHS="${NATTEN_BLACKWELL_ARCHS}" \
     -DNATTEN_WITH_HOPPER_FNA="${NATTEN_WITH_HOPPER_FNA}" \
     -DNATTEN_WITH_BLACKWELL_FNA="${NATTEN_WITH_BLACKWELL_FNA}" \
     -DCUTLASS_INCLUDE_DIR="${PREFIX}/include" \
     -DTORCH_INCLUDE_DIRS="${PREFIX}/include;${PREFIX}/include/torch/csrc/api/include" \
     -DTORCH_LIBRARY_DIRS="${PREFIX}/lib"
-cmake --build build-kernels -j"${NATTEN_N_WORKERS}"
+# nvcc's peak memory differs by almost an order of magnitude between the
+# families, so each one gets its own job count instead of a single global -j.
+# Measured peak RSS of one translation unit with CUDA 13.4 and CUTLASS 4.7.1:
+# a portable kernel needs ~1.1 GB, a blackwell one ~8.5 GB. The CI agents have
+# 4 cores and 16 GB, so blackwell has to be built one at a time while the
+# portable kernels can use every core. A single hardcoded -j either wastes
+# most of the build or runs the agent out of memory part way through.
+mem_gb=$(awk '/MemTotal/ {printf "%d", $2 / 1048576}' /proc/meminfo)
+max_workers="${NATTEN_N_WORKERS:-${CPU_COUNT:-1}}"
+
+# $1 = GB one nvcc process of this family needs at its peak
+build_family() {
+    local target="$1" per_job_gb="$2" jobs
+    jobs=$(( mem_gb / per_job_gb ))
+    # Spelled out rather than as "(( ... )) && jobs=N": a false (( )) returns 1,
+    # which under "set -e" is a trap waiting for the next person to reorder this.
+    if (( jobs < 1 )); then
+        jobs=1
+    fi
+    if (( jobs > max_workers )); then
+        jobs="${max_workers}"
+    fi
+    echo "building ${target} with -j${jobs} (${mem_gb} GB / ${per_job_gb} GB per job)"
+    cmake --build build-kernels --target "${target}" -j"${jobs}"
+}
+
+build_family natten_kernels_generic 2
+if [[ "${NATTEN_WITH_HOPPER_FNA}" == "1" ]]; then
+    build_family natten_kernels_hopper 6
+fi
+if [[ "${NATTEN_WITH_BLACKWELL_FNA}" == "1" ]]; then
+    build_family natten_kernels_blackwell 10
+fi
+
+# Everything above is compiled; all that is left is linking the shared library.
+cmake --build build-kernels -j1
 cmake --install build-kernels

@@ -16,6 +16,9 @@ source:
     - 0001-Fix-int32-offset-overflow-in-compute-delta-reduction.patch
     # https://github.com/SHI-Labs/NATTEN/pull/346
     - 0002-Fix-torch.compile-self-attention-fallback-logging.patch
+    # Blackwell MMA helpers still use the pre-CUTLASS-4.5 spelling; we build
+    # against conda-forge's cutlass (4.7), not the vendored 4.3.5
+    - 0003-Port-Blackwell-MMA-helpers-to-CUTLASS-4.5.patch
 
 build:
   number: 2
@@ -61,9 +64,6 @@ outputs:
           # recipe/cuda_archs.sh turns this into NATTEN_CUDA_ARCHS and the
           # NATTEN_WITH_*_FNA flags; the datacenter parts are CUDA 13 only
           cuda_compiler_version: ${{ cuda_compiler_version }}
-          # One compile job at a time; the CUTLASS kernels need several GB each
-          # and parallel jobs risk running the CI agents out of memory
-          NATTEN_N_WORKERS: "1"
         file: build_kernels.sh
     tests:
       - package_contents:
