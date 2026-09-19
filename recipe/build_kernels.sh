@@ -40,9 +40,12 @@ cmake -S "${RECIPE_DIR}/kernels" -B build-kernels ${CMAKE_ARGS} \
     -DCUTLASS_INCLUDE_DIR="${PREFIX}/include" \
     -DTORCH_INCLUDE_DIRS="${PREFIX}/include;${PREFIX}/include/torch/csrc/api/include" \
     -DTORCH_LIBRARY_DIRS="${PREFIX}/lib"
-# One compile job at a time. The CUTLASS translation units are huge -- peak
-# RSS for a single one is ~3 GB for the portable kernels and ~10-12 GB for
-# hopper and blackwell -- and the CI agents only have 16 GB, so anything above
-# -j1 risks the agent being OOM-killed part way through a multi-hour build.
+# The portable kernels are over half the build -- 80 translation units across
+# 7 architectures, 4h12m of a 6h CI budget on their own -- and at ~3 GB peak
+# RSS each they are the only family that can safely run in parallel: four at
+# once is ~12 GB of the agent's 16 GB. Hopper and blackwell peak at 10-12 GB
+# for a single unit, so they stay strictly serial or the agent gets
+# OOM-killed part way through a multi-hour build.
+cmake --build build-kernels --target natten_kernels_generic -j"${CPU_COUNT:-1}"
 cmake --build build-kernels -j1
 cmake --install build-kernels
