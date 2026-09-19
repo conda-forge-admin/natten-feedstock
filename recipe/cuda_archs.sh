@@ -23,24 +23,41 @@
 # and 395 lines with zero for sm_90. Upstream's setup.py maps 90/100/103 to
 # 90a/100a/103a for the same reason.
 #
-# Datacenter parts are CUDA 13 only. Enabling Hopper for both CUDA versions
-# was measured on PR #4 (run 35351538869): linux_64 cuda 13.4 finished in
-# 4h44m, while the identical commit on cuda 12.9 ran past the 360 minute CI
-# timeout and was cancelled at 6h01m. That run predates both the per-family
-# arch split below and the per-family -j in build_kernels.sh, which between
-# them cut the datacenter cost a long way, so treat those numbers as a worst
-# case rather than a current estimate. 12.9 stays consumer-only until someone
-# actually re-measures it.
+# Datacenter parts are CUDA 13 only; 12.9 keeps the consumer selection.
 #
-# sm_110 is still left out: it would add a seventh -real target to the
-# portable kernels, and that budget is needed for sm_100 coverage instead.
+# Blackwell FNA is off, and the reason is CI time, not correctness. The
+# 0003 patch does port the blackwell helpers to the CUTLASS 4.5+ API and all
+# 53 of its translation units compile clean against conda-forge's 4.7.1 --
+# it is turned off purely because the job does not fit. Measured on
+# run 35439135977, linux_64 cuda 13.4, against the 360 minute GitHub cap:
+#
+#   portable    80 TUs   -j4   2h18m
+#   hopper      25 TUs   -j1   1h22m
+#   blackwell   53 TUs   -j1   3h07m  (cancelled at 38/53)
+#                              ~7h05m total
+#
+# Hopper and blackwell cannot share the machine: one translation unit peaks
+# at 10.4 GB and 11.7 GB respectively, so on a 16 GB agent they are strictly
+# -j1 and together they are 4h29m of unavoidable serial work. Dropping
+# blackwell brings the job to roughly 3h58m.
+#
+# To turn it back on, flip NATTEN_WITH_BLACKWELL_FNA to 1 below. It needs an
+# agent that can either run the datacenter families at -j2 (so, more than
+# 16 GB of RAM) or allow more than six hours; nothing in this recipe will
+# buy back the missing hour.
+#
+# sm_100-real stays in the portable list even with blackwell off -- it is
+# what datacenter Blackwell falls back to, and 120-virtual PTX cannot JIT
+# down to sm_100. sm_110 is left out: it would add an eighth target to the
+# portable kernels for no coverage we do not already have.
 case "${cuda_compiler_version}" in
     13.*)
         export NATTEN_CUDA_ARCHS="75-real;80-real;86-real;90-real;100-real;120-real;120-virtual"
         export NATTEN_HOPPER_ARCHS="90a-real"
         export NATTEN_BLACKWELL_ARCHS="100a-real"
         export NATTEN_WITH_HOPPER_FNA="1"
-        export NATTEN_WITH_BLACKWELL_FNA="1"
+        # See the CI budget note above before flipping this to 1
+        export NATTEN_WITH_BLACKWELL_FNA="0"
         ;;
     *)
         export NATTEN_CUDA_ARCHS="75-real;80-real;86-real;120-real;120-virtual"
