@@ -3,15 +3,6 @@ schema_version: 1
 context:
   name: natten
   version: "0.21.7"
-  # Turing (RTX 20 series, T4), Ampere (A100, RTX 30 series; sm_86 binaries also
-  # run on the 40 series) and consumer Blackwell (RTX 50 series, RTX PRO 6000),
-  # with PTX for the newest arch so future GPUs can JIT the kernels. The
-  # datacenter-only Hopper (9.0) and Blackwell (10.0) kernels are left out: they
-  # are by far the heaviest to compile, and NATTEN only enables those kernel
-  # families for those two archs.
-  cuda_archs: 75-real;80-real;86-real;120-real;120-virtual
-  with_hopper_fna: "0"
-  with_blackwell_fna: "0"
 
 recipe:
   name: natten-split
@@ -25,9 +16,12 @@ source:
     - 0001-Fix-int32-offset-overflow-in-compute-delta-reduction.patch
     # https://github.com/SHI-Labs/NATTEN/pull/346
     - 0002-Fix-torch.compile-self-attention-fallback-logging.patch
+    # Blackwell MMA helpers still use the pre-CUTLASS-4.5 spelling; we build
+    # against conda-forge's cutlass (4.7), not the vendored 4.3.5
+    - 0003-Port-Blackwell-MMA-helpers-to-CUTLASS-4.5.patch
 
 build:
-  number: 1
+  number: 2
   # libnatten is CUDA-only; without CUDA upstream builds a pure-python package
   skip:
     - cuda_compiler_version == "None" or (not linux)
@@ -67,12 +61,9 @@ outputs:
     build:
       script:
         env:
-          NATTEN_CUDA_ARCHS: ${{ cuda_archs }}
-          NATTEN_WITH_HOPPER_FNA: ${{ with_hopper_fna }}
-          NATTEN_WITH_BLACKWELL_FNA: ${{ with_blackwell_fna }}
-          # One compile job at a time; the CUTLASS kernels need several GB each and
-          # parallel jobs run the CI agents out of memory
-          NATTEN_N_WORKERS: "1"
+          # recipe/cuda_archs.sh turns this into NATTEN_CUDA_ARCHS and the
+          # NATTEN_WITH_*_FNA flags; the datacenter parts are CUDA 13 only
+          cuda_compiler_version: ${{ cuda_compiler_version }}
         file: build_kernels.sh
     tests:
       - package_contents:
@@ -110,9 +101,8 @@ outputs:
     build:
       script:
         env:
-          # Must match the kernels built in the staging output
-          NATTEN_WITH_HOPPER_FNA: ${{ with_hopper_fna }}
-          NATTEN_WITH_BLACKWELL_FNA: ${{ with_blackwell_fna }}
+          # Same resolution as the kernels, via recipe/cuda_archs.sh
+          cuda_compiler_version: ${{ cuda_compiler_version }}
         file: build_python.sh
     tests:
       - python:

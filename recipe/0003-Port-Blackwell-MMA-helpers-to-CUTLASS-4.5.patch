@@ -1,0 +1,119 @@
+From: conda-forge natten-feedstock
+Subject: [PATCH] Port the Blackwell FMHA/FNA MMA helpers to CUTLASS >= 4.5
+
+NATTEN 0.21.7 vendors CUTLASS 4.3.5, where cute::SM100_MMA_F8F6F4_SS is a
+plain tag type and its parameters are carried by MMA_Traits:
+
+    MMA_Traits<SM100_MMA_F8F6F4_SS, a_type, b_type, c_type,
+               C<M>, C<N>, integral_constant<Major, a_major>, ...>
+
+CUTLASS 4.5 turned the op itself into a class template and moved the
+parameters into it, so MMA_Traits takes a single argument:
+
+    template <class a_type, class b_type, class c_type, int M, int N,
+              UMMA::Major a_major, UMMA::Major b_major,
+              UMMA::ScaleIn a_neg, UMMA::ScaleIn b_neg>
+    struct SM100_MMA_F8F6F4_SS;
+
+The old spelling no longer names a type, so to_tiled_mma_sm100_ts() fails to
+compile against any CUTLASS >= 4.5 with:
+
+    error: argument list for class template "cute::SM100_MMA_F8F6F4_SS"
+           is missing
+
+Rewrite the F8F6F4 overload in the same shape the F16BF16 overload directly
+below it already uses -- match on MMA_Atom<Op<params...>, TAs...> rather than
+MMA_Atom<MMA_Traits<Tag, params...>, TAs...> -- which is valid in both
+layouts of the surrounding code and keeps the two overloads consistent.
+
+This is needed because conda-forge builds against the packaged CUTLASS
+(4.7.1) rather than the vendored copy.
+
+diff --git a/csrc/include/natten/cuda/fmha_blackwell/collective/fmha_common.hpp b/csrc/include/natten/cuda/fmha_blackwell/collective/fmha_common.hpp
+index 6c96030..eaa6652 100644
+--- a/csrc/include/natten/cuda/fmha_blackwell/collective/fmha_common.hpp
++++ b/csrc/include/natten/cuda/fmha_blackwell/collective/fmha_common.hpp
+@@ -95,22 +95,21 @@ template <
+ CUTE_HOST_DEVICE constexpr auto to_tiled_mma_sm100_ts(
+     TiledMMA<
+         MMA_Atom<
+-            MMA_Traits<
+-                SM100_MMA_F8F6F4_SS,
++            SM100_MMA_F8F6F4_SS<
+                 a_type,
+                 b_type,
+                 c_type,
+-                cute::C<M>,
+-                cute::C<N>,
+-                cute::integral_constant<UMMA::Major, a_major>,
+-                cute::integral_constant<UMMA::Major, b_major>,
+-                cute::integral_constant<UMMA::ScaleIn, a_neg>,
+-                cute::integral_constant<UMMA::ScaleIn, b_neg>>,
++                M,
++                N,
++                a_major,
++                b_major,
++                a_neg,
++                b_neg>,
+             TAs...>,
+         TMs...>) {
+   return TiledMMA<
+       MMA_Atom<
+-          MMA_Traits<SM100_MMA_F8F6F4_TS<
++          SM100_MMA_F8F6F4_TS<
+               a_type,
+               b_type,
+               c_type,
+@@ -120,7 +119,7 @@ CUTE_HOST_DEVICE constexpr auto to_tiled_mma_sm100_ts(
+               b_major,
+               a_neg,
+               b_neg,
+-              UMMA::Saturate::False>>,
++              UMMA::Saturate::False>,
+           TAs...>,
+       TMs...>{};
+ }
+diff --git a/csrc/include/natten/cuda/fna_blackwell/collective/fna_common.hpp b/csrc/include/natten/cuda/fna_blackwell/collective/fna_common.hpp
+index 128f3ce..c4870cb 100644
+--- a/csrc/include/natten/cuda/fna_blackwell/collective/fna_common.hpp
++++ b/csrc/include/natten/cuda/fna_blackwell/collective/fna_common.hpp
+@@ -95,22 +95,21 @@ template <
+ CUTE_HOST_DEVICE constexpr auto to_tiled_mma_sm100_ts(
+     TiledMMA<
+         MMA_Atom<
+-            MMA_Traits<
+-                SM100_MMA_F8F6F4_SS,
++            SM100_MMA_F8F6F4_SS<
+                 a_type,
+                 b_type,
+                 c_type,
+-                cute::C<M>,
+-                cute::C<N>,
+-                cute::integral_constant<UMMA::Major, a_major>,
+-                cute::integral_constant<UMMA::Major, b_major>,
+-                cute::integral_constant<UMMA::ScaleIn, a_neg>,
+-                cute::integral_constant<UMMA::ScaleIn, b_neg>>,
++                M,
++                N,
++                a_major,
++                b_major,
++                a_neg,
++                b_neg>,
+             TAs...>,
+         TMs...>) {
+   return TiledMMA<
+       MMA_Atom<
+-          MMA_Traits<SM100_MMA_F8F6F4_TS<
++          SM100_MMA_F8F6F4_TS<
+               a_type,
+               b_type,
+               c_type,
+@@ -120,7 +119,7 @@ CUTE_HOST_DEVICE constexpr auto to_tiled_mma_sm100_ts(
+               b_major,
+               a_neg,
+               b_neg,
+-              UMMA::Saturate::False>>,
++              UMMA::Saturate::False>,
+           TAs...>,
+       TMs...>{};
+ }

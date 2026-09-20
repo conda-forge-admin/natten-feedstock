@@ -1,6 +1,9 @@
 #!/bin/bash
 set -ex
 
+# Must match the kernels: same NATTEN_WITH_*_FNA flags, resolved the same way
+source "${RECIPE_DIR}/cuda_archs.sh"
+
 # Install the pure-python part. Hide any GPU and leave NATTEN_CUDA_ARCH unset so
 # setup.py does not build libnatten itself; the pybind11 module is built below
 # against the kernels already compiled into the libnatten package.
