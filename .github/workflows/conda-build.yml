@@ -16,7 +16,7 @@ jobs:
   build:
     name: ${{ matrix.CONFIG }}
     runs-on: ${{ matrix.runs_on }}
-    timeout-minutes: 360
+    timeout-minutes: 720
     strategy:
       fail-fast: false
       max-parallel: 50
@@ -32,7 +32,7 @@ jobs:
             os: ubuntu
             pagefile_size: 0
             resize_partitions: False
-            runs_on: ['ubuntu-latest']
+            runs_on: ['depot-ubuntu-24.04-16']
             tools_install_dir: ~/miniforge3
           - CONFIG: linux_64_c_compiler_version15c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15
             DOCKER_IMAGE: quay.io/condaforge/linux-anvil-x86_64:alma10
@@ -44,7 +44,7 @@ jobs:
             os: ubuntu
             pagefile_size: 0
             resize_partitions: False
-            runs_on: ['ubuntu-latest']
+            runs_on: ['depot-ubuntu-24.04-16']
             tools_install_dir: ~/miniforge3
     steps:
 
