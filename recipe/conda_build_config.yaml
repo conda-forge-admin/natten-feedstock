@@ -1,0 +1,6 @@
+# Every NATTEN kernel family is built, including hopper (sm_90a) and blackwell
+# (sm_100a + sm_103a), which is well past the 6 h / 16 GB of a standard runner.
+# Depot access granted in conda-forge/admin-requests#2359.
+# https://conda-forge.org/docs/reference/runners/
+github_actions_labels:  # [linux]
+- depot-ubuntu-24.04-16  # [linux64]
