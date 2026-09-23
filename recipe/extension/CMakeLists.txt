@@ -21,15 +21,9 @@ target_compile_definitions(natten PRIVATE
   CUTLASS_ENABLE_TENSOR_CORE_MMA=1
   TORCH_API_INCLUDE_EXTENSION_H
   TORCH_EXTENSION_NAME=libnatten
+  NATTEN_WITH_HOPPER_FNA=1
+  NATTEN_WITH_BLACKWELL_FNA=1
 )
-
-# Must match the kernel library: the sources test these with #if defined()
-if(NATTEN_WITH_HOPPER_FNA)
-  target_compile_definitions(natten PRIVATE NATTEN_WITH_HOPPER_FNA=1)
-endif()
-if(NATTEN_WITH_BLACKWELL_FNA)
-  target_compile_definitions(natten PRIVATE NATTEN_WITH_BLACKWELL_FNA=1)
-endif()
 target_include_directories(natten PRIVATE ${NATTEN_CSRC}/include)
 target_include_directories(natten SYSTEM PRIVATE ${TORCH_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIR})
 target_link_directories(natten PRIVATE ${TORCH_LIBRARY_DIRS})

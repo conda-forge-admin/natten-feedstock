@@ -1,24 +1,27 @@
 #!/bin/bash
 set -ex
 
-# Resolves NATTEN_CUDA_ARCHS and the NATTEN_WITH_*_FNA flags from cuda_compiler_version
-source "${RECIPE_DIR}/cuda_archs.sh"
+# Same architectures as conda-forge's pytorch for each CUDA version. The hopper
+# and blackwell kernel families get their own arch lists in kernels/CMakeLists.txt.
+case "${cuda_compiler_version}" in
+    12.*)
+        NATTEN_CUDA_ARCHS="50-real;60-real;70-real;75-real;80-real;86-real;90-real;100-real;120-real;120-virtual"
+        ;;
+    *)
+        NATTEN_CUDA_ARCHS="75-real;80-real;86-real;90-real;100-real;110-real;120-real;120-virtual"
+        ;;
+esac
 
 rm -rf third_party/cutlass/include
 
 # Generate the kernel instantiations with setup.py's "default" split policy.
-# The hopper/blackwell families are only built for sm_90/sm_100, like upstream.
 #
 # Resplitting is not a lever worth pulling here: measured on blackwell_fna,
 # 56 splits costs 39% more CPU than the default 28 and 14 splits raises peak
 # memory, so the default stays.
 AUTOGEN_SPECS="reference_fna:2 fna:64 fmha:6"
-if [[ "${NATTEN_WITH_HOPPER_FNA}" == "1" ]]; then
-    AUTOGEN_SPECS+=" hopper_fna:8 hopper_fna_bwd:4 hopper_fmha:5 hopper_fmha_bwd:5"
-fi
-if [[ "${NATTEN_WITH_BLACKWELL_FNA}" == "1" ]]; then
-    AUTOGEN_SPECS+=" blackwell_fna:28 blackwell_fna_bwd:14 blackwell_fmha:4 blackwell_fmha_bwd:4"
-fi
+AUTOGEN_SPECS+=" hopper_fna:8 hopper_fna_bwd:4 hopper_fmha:5 hopper_fmha_bwd:5"
+AUTOGEN_SPECS+=" blackwell_fna:28 blackwell_fna_bwd:14 blackwell_fmha:4 blackwell_fmha_bwd:4"
 for spec in ${AUTOGEN_SPECS}; do
     "${BUILD_PREFIX}/bin/python" "scripts/autogen_${spec%%:*}.py" \
         --num-splits "${spec##*:}" -o csrc
@@ -33,19 +36,11 @@ cmake -S "${RECIPE_DIR}/kernels" -B build-kernels ${CMAKE_ARGS} \
     -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
     -DNATTEN_CSRC="${SRC_DIR}/csrc" \
     -DNATTEN_CUDA_ARCHS="${NATTEN_CUDA_ARCHS}" \
-    -DNATTEN_HOPPER_ARCHS="${NATTEN_HOPPER_ARCHS}" \
-    -DNATTEN_BLACKWELL_ARCHS="${NATTEN_BLACKWELL_ARCHS}" \
-    -DNATTEN_WITH_HOPPER_FNA="${NATTEN_WITH_HOPPER_FNA}" \
-    -DNATTEN_WITH_BLACKWELL_FNA="${NATTEN_WITH_BLACKWELL_FNA}" \
     -DCUTLASS_INCLUDE_DIR="${PREFIX}/include" \
     -DTORCH_INCLUDE_DIRS="${PREFIX}/include;${PREFIX}/include/torch/csrc/api/include" \
     -DTORCH_LIBRARY_DIRS="${PREFIX}/lib"
-# The portable kernels are over half the build -- 80 translation units across
-# 7 architectures, 4h12m of a 6h CI budget on their own -- and at ~3 GB peak
-# RSS each they are the only family that can safely run in parallel: four at
-# once is ~12 GB of the agent's 16 GB. Hopper and blackwell peak at 10-12 GB
-# for a single unit, so they stay strictly serial or the agent gets
-# OOM-killed part way through a multi-hour build.
-cmake --build build-kernels --target natten_kernels_generic -j"${CPU_COUNT:-1}"
-cmake --build build-kernels -j1
+# A hopper or blackwell translation unit peaks at 10-12 GB, so six at once
+# could in principle need ~72 GB of the large runner's 64 GB. In practice -j6
+# has not been OOM-killed; drop to -j5 (~60 GB worst case) if it ever is.
+cmake --build build-kernels -j6
 cmake --install build-kernels

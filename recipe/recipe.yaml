@@ -21,7 +21,7 @@ source:
     - 0003-Port-Blackwell-MMA-helpers-to-CUTLASS-4.5.patch
 
 build:
-  number: 2
+  number: 3
   # libnatten is CUDA-only; without CUDA upstream builds a pure-python package
   skip:
     - cuda_compiler_version == "None" or (not linux)
@@ -61,8 +61,7 @@ outputs:
     build:
       script:
         env:
-          # recipe/cuda_archs.sh turns this into NATTEN_CUDA_ARCHS and the
-          # NATTEN_WITH_*_FNA flags; the datacenter parts are CUDA 13 only
+          # build_kernels.sh picks the arch list from this
           cuda_compiler_version: ${{ cuda_compiler_version }}
         file: build_kernels.sh
     tests:
@@ -99,11 +98,7 @@ outputs:
         - python
         - pytorch * cuda*
     build:
-      script:
-        env:
-          # Same resolution as the kernels, via recipe/cuda_archs.sh
-          cuda_compiler_version: ${{ cuda_compiler_version }}
-        file: build_python.sh
+      script: build_python.sh
     tests:
       - python:
           imports:

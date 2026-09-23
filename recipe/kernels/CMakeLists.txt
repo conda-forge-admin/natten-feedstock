@@ -29,66 +29,41 @@ add_compile_definitions(
   WITH_CUDA
   NATTEN_WITH_CUTLASS
   CUTLASS_ENABLE_TENSOR_CORE_MMA=1
+  NATTEN_WITH_HOPPER_FNA=1
+  NATTEN_WITH_BLACKWELL_FNA=1
 )
-
-# The sources test these with #if defined(), so only define them when enabled
-if(NATTEN_WITH_HOPPER_FNA)
-  add_compile_definitions(NATTEN_WITH_HOPPER_FNA=1)
-endif()
-if(NATTEN_WITH_BLACKWELL_FNA)
-  add_compile_definitions(NATTEN_WITH_BLACKWELL_FNA=1)
-endif()
 
 # Split the sources by the architecture they actually target.
 #
 # The hopper and blackwell families use arch-conditional CUTLASS instructions
-# (WGMMA/TMA on sm_90a, tcgen05 on sm_100a) and NATTEN only ever dispatches
-# them on those GPUs. Compiling them for the whole arch list is pure waste --
-# and worse, compiling them for a plain "90" instead of "90a" silently yields
-# an empty kernel: nvcc -ptx on hopper_fmha/source_0.cu emits 584 wgmma ops
-# for sm_90a and 0 for sm_90, with no diagnostic either way. Upstream's
-# setup.py has the same mapping (90/100/103 -> 90a/100a/103a).
-#
-# So each family gets its own object library with its own CUDA_ARCHITECTURES,
-# and they are combined into one shared library at the end.
-file(GLOB SRC_SOURCES ${NATTEN_CSRC}/src/*.cpp ${NATTEN_CSRC}/src/*.cu)
-file(GLOB HOPPER_SRC ${NATTEN_CSRC}/src/hopper_*.cu)
-file(GLOB BLACKWELL_SRC ${NATTEN_CSRC}/src/blackwell_*.cu)
-file(GLOB HOPPER_AUTOGEN ${NATTEN_CSRC}/autogen/src/cuda/hopper_*/*.cu)
-file(GLOB BLACKWELL_AUTOGEN ${NATTEN_CSRC}/autogen/src/cuda/blackwell_*/*.cu)
+# (WGMMA/TMA on sm_90a, tcgen05 on sm_100a/sm_103a) and NATTEN only ever
+# dispatches them on those GPUs. Compiling them for a plain "90" instead of
+# "90a" silently yields an empty kernel: nvcc -ptx on hopper_fmha/source_0.cu
+# emits 584 wgmma ops for sm_90a and 0 for sm_90, with no diagnostic either
+# way. An "a" cubin also only runs on exactly that compute capability, so
+# blackwell needs both 100a (B200) and 103a (B300). Upstream's setup.py has the
+# same mapping (90/100/103 -> 90a/100a/103a).
+set(NATTEN_HOPPER_ARCHS "90a-real")
+set(NATTEN_BLACKWELL_ARCHS "100a-real;103a-real")
 
-# Everything that is not a datacenter autogen directory is portable. Glob the
-# whole autogen tree and subtract, rather than listing the portable families,
-# so that a family added upstream lands in the portable set instead of being
-# silently dropped from the build.
+# csrc/src/{hopper,blackwell}_*.cu are the ATen-level wrappers that instantiate
+# those kernels, so they go with their family too. Everything else is portable;
+# glob the whole tree and subtract, so that a family added upstream lands in
+# the portable set instead of being silently dropped from the build.
+file(GLOB HOPPER_SOURCES
+  ${NATTEN_CSRC}/src/hopper_*.cu
+  ${NATTEN_CSRC}/autogen/src/cuda/hopper_*/*.cu
+)
+file(GLOB BLACKWELL_SOURCES
+  ${NATTEN_CSRC}/src/blackwell_*.cu
+  ${NATTEN_CSRC}/autogen/src/cuda/blackwell_*/*.cu
+)
 file(GLOB GENERIC_SOURCES
+  ${NATTEN_CSRC}/src/*.cpp
+  ${NATTEN_CSRC}/src/*.cu
   ${NATTEN_CSRC}/autogen/src/cuda/*/*.cu
 )
-list(APPEND GENERIC_SOURCES ${SRC_SOURCES})
-if(HOPPER_AUTOGEN)
-  list(REMOVE_ITEM GENERIC_SOURCES ${HOPPER_AUTOGEN})
-endif()
-if(BLACKWELL_AUTOGEN)
-  list(REMOVE_ITEM GENERIC_SOURCES ${BLACKWELL_AUTOGEN})
-endif()
-
-# csrc/src/{hopper,blackwell}_*.cu are the ATen-level wrappers, and natten.cpp
-# registers their entry points unconditionally -- there is no #if around the
-# pybind11 defs. With the family enabled they instantiate its kernels, so they
-# have to move to that family's architecture. With it disabled they still have
-# to be built, as the stubs that raise "not compiled with ..." at runtime;
-# leaving them out costs the shared library those symbols and the extension
-# module then fails to link.
-set(HOPPER_SOURCES ${HOPPER_AUTOGEN})
-set(BLACKWELL_SOURCES ${BLACKWELL_AUTOGEN})
-if(NATTEN_WITH_HOPPER_FNA AND HOPPER_SRC)
-  list(APPEND HOPPER_SOURCES ${HOPPER_SRC})
-  list(REMOVE_ITEM GENERIC_SOURCES ${HOPPER_SRC})
-endif()
-if(NATTEN_WITH_BLACKWELL_FNA AND BLACKWELL_SRC)
-  list(APPEND BLACKWELL_SOURCES ${BLACKWELL_SRC})
-  list(REMOVE_ITEM GENERIC_SOURCES ${BLACKWELL_SRC})
-endif()
+list(REMOVE_ITEM GENERIC_SOURCES ${HOPPER_SOURCES} ${BLACKWELL_SOURCES})
 
 macro(natten_configure_kernels tgt)
   set_target_properties(${tgt} PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -104,25 +79,22 @@ add_library(natten_kernels_generic OBJECT ${GENERIC_SOURCES})
 set_target_properties(natten_kernels_generic PROPERTIES
   CUDA_ARCHITECTURES "${NATTEN_CUDA_ARCHS}")
 natten_configure_kernels(natten_kernels_generic)
-set(NATTEN_OBJECTS $<TARGET_OBJECTS:natten_kernels_generic>)
 
-if(NATTEN_WITH_HOPPER_FNA AND HOPPER_SOURCES)
-  add_library(natten_kernels_hopper OBJECT ${HOPPER_SOURCES})
-  set_target_properties(natten_kernels_hopper PROPERTIES
-    CUDA_ARCHITECTURES "${NATTEN_HOPPER_ARCHS}")
-  natten_configure_kernels(natten_kernels_hopper)
-  list(APPEND NATTEN_OBJECTS $<TARGET_OBJECTS:natten_kernels_hopper>)
-endif()
+add_library(natten_kernels_hopper OBJECT ${HOPPER_SOURCES})
+set_target_properties(natten_kernels_hopper PROPERTIES
+  CUDA_ARCHITECTURES "${NATTEN_HOPPER_ARCHS}")
+natten_configure_kernels(natten_kernels_hopper)
 
-if(NATTEN_WITH_BLACKWELL_FNA AND BLACKWELL_SOURCES)
-  add_library(natten_kernels_blackwell OBJECT ${BLACKWELL_SOURCES})
-  set_target_properties(natten_kernels_blackwell PROPERTIES
-    CUDA_ARCHITECTURES "${NATTEN_BLACKWELL_ARCHS}")
-  natten_configure_kernels(natten_kernels_blackwell)
-  list(APPEND NATTEN_OBJECTS $<TARGET_OBJECTS:natten_kernels_blackwell>)
-endif()
+add_library(natten_kernels_blackwell OBJECT ${BLACKWELL_SOURCES})
+set_target_properties(natten_kernels_blackwell PROPERTIES
+  CUDA_ARCHITECTURES "${NATTEN_BLACKWELL_ARCHS}")
+natten_configure_kernels(natten_kernels_blackwell)
 
-add_library(natten_kernels SHARED ${NATTEN_OBJECTS})
+add_library(natten_kernels SHARED
+  $<TARGET_OBJECTS:natten_kernels_generic>
+  $<TARGET_OBJECTS:natten_kernels_hopper>
+  $<TARGET_OBJECTS:natten_kernels_blackwell>
+)
 set_target_properties(natten_kernels PROPERTIES
   LINKER_LANGUAGE CUDA
   POSITION_INDEPENDENT_CODE ON
