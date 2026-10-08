@@ -21,7 +21,7 @@ source:
     - 0003-Port-Blackwell-MMA-helpers-to-CUTLASS-4.5.patch
 
 build:
-  number: 3
+  number: 4
   # libnatten is CUDA-only; without CUDA upstream builds a pure-python package
   skip:
     - cuda_compiler_version == "None" or (not linux)
